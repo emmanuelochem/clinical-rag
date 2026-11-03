@@ -1,0 +1,39 @@
+# Fully local stack: Ollama (models), FastAPI backend, Next.js frontend.
+# GPU: uncomment the `deploy` block under ollama (requires NVIDIA Container Toolkit).
+services:
+  ollama:
+    image: ollama/ollama:latest
+    volumes: [ollama:/root/.ollama]
+    ports: ["11434:11434"]
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices: [{ driver: nvidia, count: all, capabilities: [gpu] }]
+
+  models:  # one-shot: pull the chat and embedding models
+    image: ollama/ollama:latest
+    depends_on: [ollama]
+    environment: { OLLAMA_HOST: "ollama:11434" }
+    entrypoint: ["sh", "-c", "ollama pull ${RAG_CHAT_MODEL:-qwen2.5:7b-instruct} && ollama pull ${RAG_EMBED_MODEL:-nomic-embed-text}"]
+    restart: "no"
+
+  backend:
+    build: { context: ./backend, args: { EXTRAS: "${BACKEND_EXTRAS:-}" } }
+    env_file: [.env]
+    environment:
+      RAG_OLLAMA_URL: http://ollama:11434
+      RAG_DATA_DIR: /data
+      RAG_CORS_ORIGINS: '["http://localhost:3000"]'
+    volumes: [ragdata:/data]
+    depends_on:
+      models: { condition: service_completed_successfully }
+    ports: ["8000:8000"]
+
+  frontend:
+    build: { context: ./frontend, args: { BACKEND_URL: http://backend:8000 } }
+    depends_on: [backend]
+    ports: ["3000:3000"]
+
+volumes:
+  ollama:
+  ragdata:

@@ -1,0 +1,24 @@
+{"question": "Patient with peaked T waves and potassium 6.8 on lisinopril, what is the emergency treatment?", "expected": ["Hyperkal"]}
+{"question": "Diagnostic criteria for diabetic ketoacidosis", "expected": ["Hyperglyc"]}
+{"question": "Euglycaemic DKA risk with empagliflozin", "expected": ["Hyperglyc"]}
+{"question": "When is metformin contraindicated based on eGFR?", "expected": ["Type 2 Diabetes", "Chronic Kidney"]}
+{"question": "CURB-65 severity score for pneumonia", "expected": ["Pneumonia"]}
+{"question": "Rust coloured sputum with fever and pleuritic pain", "expected": ["Pneumonia"]}
+{"question": "Black tarry stools in a patient on apixaban with low haemoglobin", "expected": ["Anaemia", "Gastrointestinal"]}
+{"question": "Ferritin threshold for diagnosing iron deficiency", "expected": ["Anaemia"]}
+{"question": "Chest pressure radiating to the jaw with sweating, initial workup", "expected": ["Chest Pain"]}
+{"question": "High-sensitivity troponin interpretation and 0/1 hour algorithm", "expected": ["Chest Pain"]}
+{"question": "BNP cut-off to rule out acute heart failure", "expected": ["Heart Failure"]}
+{"question": "Orthopnoea, leg swelling and weight gain over a week", "expected": ["Heart Failure"]}
+{"question": "Stroke prevention scoring in atrial fibrillation", "expected": ["Atrial Fibrillation"]}
+{"question": "Target oxygen saturation in COPD exacerbation", "expected": ["COPD", "Obstructive"]}
+{"question": "Wells score and D-dimer for suspected pulmonary embolism", "expected": ["Pulmonary Embolism"]}
+{"question": "Sepsis hour-1 bundle antibiotics and lactate", "expected": ["Sepsis"]}
+{"question": "qSOFA criteria", "expected": ["Sepsis"]}
+{"question": "NEWS2 score of 7 required response", "expected": ["NEWS2"]}
+{"question": "Levothyroxine timing and interactions with iron and calcium", "expected": ["Hypothyroid"]}
+{"question": "KDIGO albuminuria categories A1 A2 A3", "expected": ["Chronic Kidney"]}
+{"question": "Hypertensive emergency definition and target organ damage", "expected": ["Hypertension"]}
+{"question": "Causes of fatigue to investigate with initial blood tests", "expected": ["Symptoms"]}
+{"question": "Muscle weakness and palpitations in CKD patient taking ibuprofen", "expected": ["Hyperkal", "Symptoms"]}
+{"question": "HbA1c target for frail older adults", "expected": ["Type 2 Diabetes"]}

@@ -1,0 +1,3 @@
+Bundled demo reference library. Each file is a concise summary authored for this demo application.
+They are NOT a substitute for current clinical guidelines. Replace or supplement them with licensed
+guideline documents (upload in the Knowledge Base page) or MedlinePlus topics (python -m app.seed --medlineplus <xml>).
