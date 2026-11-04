@@ -1,6 +1,6 @@
 # Clinical RAG
 
-A local-first **clinical decision-support** web app for clinicians. It answers questions about a patient's record, charts lab and vital trends, and produces **evidence-cited differential diagnoses**. Every claim links back to the record, a clinical note or a medical reference passage.
+A **clinical decision-support** web app for clinicians. It answers questions about a patient's record, charts lab and vital trends, and produces **evidence-cited differential diagnoses**. Every claim links back to the record, a clinical note or a medical reference passage.
 
 > ⚠️ **Decision support, not diagnosis.** Outputs come from a language model and may be wrong or incomplete. The bundled patient data is **synthetic**. Before using real patient data, see [Going to production](#going-to-production).
 
@@ -24,14 +24,17 @@ Next.js (React 19, Tailwind 4, Recharts) ──/api──►  FastAPI
                                                      ├─ SQLite: patients, encounters, conditions, observations (LOINC),
                                                      │          medications, allergies, notes, documents, audit log
                                                      ├─ LanceDB: chunk vectors + BM25 full-text index (embedded, on disk)
-                                                     └─ Ollama: chat model + embedding model (local)
+                                                     ├─ Chat LLM: Groq (default) · Gemini · any OpenAI-compatible API · Ollama
+                                                     └─ Local, in-process: embeddings + cross-encoder reranker (fastembed/ONNX)
 ```
+
+Only the chat model runs in the cloud. Embeddings, reranking, search, the database and the safety rules all run inside the backend. They need no API key and no GPU.
 
 **Retrieval pipeline** (`backend/app/retrieval/hybrid.py`)
 
 1. Each query runs through **dense vector search** and **BM25** (LanceDB FTS with stemming).
 2. Results from every query are merged with **Reciprocal Rank Fusion**.
-3. The top candidates are **reranked** by a local cross-encoder (`BAAI/bge-reranker-base`). LLM listwise reranking is the fallback.
+3. The top candidates are **reranked** by a local cross-encoder (`ms-marco-MiniLM-L-6-v2` by default, via fastembed). LLM listwise reranking is an option.
 4. **MMR** removes near-duplicate passages.
 5. Each hit is expanded with its **neighbouring chunks**.
 6. Patient notes are **hard-filtered by `patient_id`**, so one patient's text can't leak into another's answer (there's a test for this).
@@ -52,32 +55,16 @@ Next.js (React 19, Tailwind 4, Recharts) ──/api──►  FastAPI
 
 ## Quick start
 
-### Option A: Docker (everything local)
-
-```bash
-cp .env.example .env
-```
-
-```bash
-docker compose up --build
-```
-
-```bash
-docker compose exec backend python -m app.seed
-```
-
-Open http://localhost:3000. The first run pulls `qwen2.5:7b-instruct` (~4.7 GB) and `nomic-embed-text`. For the cross-encoder reranker, set `BACKEND_EXTRAS=[rerank]` in `.env` before building (this adds PyTorch, ~2 GB).
-
-### Option B: Native
-
-Requires Python 3.11+, Node 20+ and [Ollama](https://ollama.com).
+You need Python 3.11+, Node 20+ and a **free Groq API key** from https://console.groq.com/keys. No GPU, no Ollama.
 
 ```bash
 make install
 ```
 
+Put your key in `.env` (created by `make install`):
+
 ```bash
-make models
+GROQ_API_KEY=gsk_...
 ```
 
 ```bash
@@ -88,7 +75,34 @@ make seed
 make dev
 ```
 
-Backend: http://localhost:8000/docs · Frontend: http://localhost:3000
+Open http://localhost:3000 (API docs: http://localhost:8000/docs).
+
+`make seed` doesn't need the key. On first run it downloads the local embedding model (~70 MB) and the reranker (~80 MB) from Hugging Face and caches them in `backend/data/models`. Patient records, charts, cohort analytics and search work without a key; the assistant and differentials need one.
+
+**Docker:** put the key in `.env`, then:
+
+```bash
+docker compose up --build
+```
+
+```bash
+docker compose exec backend python -m app.seed
+```
+
+### Choosing a chat provider
+
+| Provider | Setup in `.env` | Default models (answer / planning) |
+|---|---|---|
+| **Groq** (default) | `GROQ_API_KEY=…` | `openai/gpt-oss-120b` / `openai/gpt-oss-20b` |
+| **Gemini** | `RAG_LLM_PROVIDER=gemini` and `GEMINI_API_KEY=…` ([free key](https://aistudio.google.com/apikey)) | `gemini-flash-latest` / `gemini-flash-lite-latest` |
+| **Other OpenAI-compatible** (OpenRouter, Mistral, NVIDIA NIM, vLLM, LM Studio…) | `RAG_LLM_PROVIDER=openai_compatible`, `RAG_LLM_BASE_URL`, `RAG_LLM_API_KEY`, `RAG_CHAT_MODEL` | — |
+| **Ollama** (fully local) | `RAG_LLM_PROVIDER=ollama`, optionally `RAG_EMBED_PROVIDER=ollama`; `make ollama-models` or `docker compose --profile ollama up` | `qwen2.5:7b-instruct` |
+
+Model IDs on hosted providers change over time. The status indicator in the header (and `GET /api/health`) lists the provider's live models and warns if a configured model is missing; override with `RAG_CHAT_MODEL` / `RAG_PLANNER_MODEL`. Planning and evidence checks go to the smaller planner model, which saves quota (Groq limits each model separately).
+
+**Free-tier rate limits.** Agentic mode makes about 3 calls per question (plan, evidence check, answer); a differential makes 1. Rate-limited calls (HTTP 429) are retried automatically using the provider's `Retry-After`. If you still hit the daily cap, switch the chat to **Fast** mode (1 call per question) or wait for the quota to reset.
+
+> **Privacy:** free cloud tiers are fine for the **synthetic** data here. Do **not** send real patient data to them: free tiers may use prompts to improve their services and don't offer the data-processing agreements (e.g. a HIPAA BAA) health data requires. For real data, use the Ollama setup or a paid provider that signs one.
 
 ## Medical knowledge base
 
@@ -104,16 +118,16 @@ cd backend && .venv/bin/python -m app.seed --medlineplus mplus_topics_YYYY-MM-DD
 
 ## Models
 
-Configure in `.env` (all `RAG_*`). Bigger models give noticeably better differentials and JSON reliability:
+All settings are `RAG_*` variables in `.env`; see `.env.example`.
 
-| Use | Suggested |
-|---|---|
-| Chat / differential | `qwen2.5:7b-instruct` (default), `qwen2.5:14b-instruct`, `llama3.1:8b`, or a medical fine-tune |
-| Planner (fast JSON) | `qwen2.5:3b-instruct` via `RAG_PLANNER_MODEL` |
-| Embeddings | `nomic-embed-text` (default), `mxbai-embed-large`, `bge-m3`. Change the query/doc prefixes to match |
-| Reranker | `cross-encoder` (`BAAI/bge-reranker-base`, or `-large`), `llm`, or `none` |
+| Use | Default | Alternatives |
+|---|---|---|
+| Chat / differential | Groq `openai/gpt-oss-120b` | Gemini Flash, any OpenAI-compatible model, Ollama `qwen2.5:14b-instruct` |
+| Planner (JSON planning, evidence checks) | Groq `openai/gpt-oss-20b` | any small, fast model |
+| Embeddings (local) | `BAAI/bge-small-en-v1.5` (384-d) | `BAAI/bge-base-en-v1.5`, `nomic-ai/nomic-embed-text-v1.5`, or Ollama |
+| Reranker (local) | `Xenova/ms-marco-MiniLM-L-6-v2` | `BAAI/bge-reranker-base` (more accurate, ~1 GB), `llm`, `none` |
 
-Changing the embedding model requires re-indexing: `python -m app.seed --wipe-all`.
+The search index records which embedding model built it. If you change the embedding model, the app refuses to mix vectors and shows a "re-index needed" banner; rebuild with `python -m app.seed --wipe-all`.
 
 ## Evaluation and tests
 
@@ -125,7 +139,7 @@ make test
 make eval
 ```
 
-`make test` runs the pytest suite (parsers, chunker, safety rules, NEWS2, scoped hybrid retrieval, full chat and differential SSE flows, upload/delete) plus the TypeScript typecheck. It uses deterministic stand-in models, so it needs no Ollama.
+`make test` runs the pytest suite (parsers, chunker, safety rules, NEWS2, scoped hybrid retrieval, full chat and differential SSE flows, upload/delete) plus the TypeScript typecheck. Provider behaviour (streaming, rate-limit retries, JSON-mode fallback, auth errors) is tested against a mocked HTTP API. It uses deterministic stand-in models, so it needs no API key or network.
 
 `make eval` compares vector, BM25, hybrid and hybrid+rerank retrieval on `app/eval/gold.jsonl` (hit@1, hit@k, MRR). Add questions from your own content to track retrieval quality as you tune it.
 
@@ -137,7 +151,7 @@ make eval
 
 | Method | Path | |
 |---|---|---|
-| GET | `/api/health` | Ollama status, missing models, counts |
+| GET | `/api/health` | LLM provider status, key/model checks, embedding index status, counts |
 | GET | `/api/patients?q=` · `/api/patients/{id}` | List / full record + safety screen |
 | GET | `/api/patients/{id}/series?codes=4548-4,33914-3` | Time series for charts |
 | GET | `/api/patients/{id}/notes` · `/api/notes/{id}` | Clinical notes |
@@ -153,7 +167,7 @@ make eval
 This is a well-structured prototype, not a certified medical device. Before using real patient data you need at least:
 
 - **Authentication and authorisation** (SSO/OIDC, role-based access, patient-level access control). There is currently **no auth**.
-- **PHI handling:** encryption at rest (SQLite/LanceDB volume), TLS, retention policies, and HIPAA/GDPR compliance review. Local models keep data on-premises, which helps.
+- **PHI handling:** a chat provider under a signed data-processing agreement/BAA (or Ollama on-premises; never a free tier), encryption at rest (SQLite/LanceDB volume), TLS, retention policies, and HIPAA/GDPR compliance review.
 - **EHR integration:** map FHIR R4 `Patient`, `Condition`, `Observation`, `MedicationRequest`, `AllergyIntolerance`, `Encounter` and `DocumentReference` into the existing schema (`app/store/db.py`).
 - **Lab-specific reference ranges** (the catalog uses typical adult ranges), plus sex- and age-specific ranges.
 - **Clinical validation and governance** of prompts, rules and models, including regulatory assessment (e.g. FDA CDS guidance, EU MDR).
@@ -168,7 +182,7 @@ backend/
     clinical/     catalog (LOINC/ranges), synthetic generator, repository, safety rules, differential engine
     ingest/       parsers (PDF/DOCX/HTML/MD/CSV), chunker, pipeline, MedlinePlus loader
     retrieval/    hybrid retriever (vector + BM25 → RRF → rerank → MMR → neighbours)
-    providers/    Ollama LLM + embeddings, rerankers
+    providers/    LLMs (OpenAI-compatible: Groq/Gemini/…, Ollama), local + Ollama embeddings, rerankers
     store/        SQLite, LanceDB
     eval/         retrieval evaluation harness + gold set
     main.py       FastAPI app · seed.py CLI

@@ -1,32 +1,17 @@
-# Fully local stack: Ollama (models), FastAPI backend, Next.js frontend.
-# GPU: uncomment the `deploy` block under ollama (requires NVIDIA Container Toolkit).
+# Default: backend + frontend; the chat model is a cloud API (Groq by default; set GROQ_API_KEY in .env)
+# and embeddings/reranking run locally inside the backend.
+#
+# Fully local alternative: set RAG_LLM_PROVIDER=ollama and RAG_EMBED_PROVIDER=ollama in .env, then
+#   docker compose --profile ollama up --build
 services:
-  ollama:
-    image: ollama/ollama:latest
-    volumes: [ollama:/root/.ollama]
-    ports: ["11434:11434"]
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices: [{ driver: nvidia, count: all, capabilities: [gpu] }]
-
-  models:  # one-shot: pull the chat and embedding models
-    image: ollama/ollama:latest
-    depends_on: [ollama]
-    environment: { OLLAMA_HOST: "ollama:11434" }
-    entrypoint: ["sh", "-c", "ollama pull ${RAG_CHAT_MODEL:-qwen2.5:7b-instruct} && ollama pull ${RAG_EMBED_MODEL:-nomic-embed-text}"]
-    restart: "no"
-
   backend:
-    build: { context: ./backend, args: { EXTRAS: "${BACKEND_EXTRAS:-}" } }
+    build: ./backend
     env_file: [.env]
     environment:
-      RAG_OLLAMA_URL: http://ollama:11434
       RAG_DATA_DIR: /data
+      RAG_OLLAMA_URL: http://ollama:11434
       RAG_CORS_ORIGINS: '["http://localhost:3000"]'
-    volumes: [ragdata:/data]
-    depends_on:
-      models: { condition: service_completed_successfully }
+    volumes: [ragdata:/data]  # database, search index and cached local models
     ports: ["8000:8000"]
 
   frontend:
@@ -34,6 +19,25 @@ services:
     depends_on: [backend]
     ports: ["3000:3000"]
 
-volumes:
   ollama:
+    profiles: [ollama]
+    image: ollama/ollama:latest
+    volumes: [ollama:/root/.ollama]
+    ports: ["11434:11434"]
+    # GPU: uncomment (requires NVIDIA Container Toolkit)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices: [{ driver: nvidia, count: all, capabilities: [gpu] }]
+
+  ollama-models:  # one-shot model pull for the ollama profile
+    profiles: [ollama]
+    image: ollama/ollama:latest
+    depends_on: [ollama]
+    environment: { OLLAMA_HOST: "ollama:11434" }
+    entrypoint: ["sh", "-c", "ollama pull ${RAG_CHAT_MODEL:-qwen2.5:7b-instruct} && ollama pull nomic-embed-text"]
+    restart: "no"
+
+volumes:
   ragdata:
+  ollama:

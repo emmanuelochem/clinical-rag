@@ -66,7 +66,7 @@ class FakeLLM:
 
 @pytest.fixture
 def settings(tmp_path):
-    return Settings(data_dir=tmp_path, reranker="none", neighbor_expansion=1, chunk_tokens=120, chunk_overlap_tokens=20)
+    return Settings(_env_file=None, data_dir=tmp_path, reranker="none", neighbor_expansion=1, chunk_tokens=120, chunk_overlap_tokens=20)
 
 
 @pytest.fixture

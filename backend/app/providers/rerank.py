@@ -29,24 +29,41 @@ class NoopReranker:
 
 
 class CrossEncoderReranker:
-    """Local cross-encoder (e.g. BAAI/bge-reranker-base) via sentence-transformers.
-
-    Model weights download once from Hugging Face and then run fully offline on CPU/GPU.
-    """
+    """Local cross-encoder via fastembed (ONNX, CPU). Default ``Xenova/ms-marco-MiniLM-L-6-v2`` (~80 MB);
+    ``BAAI/bge-reranker-base`` is more accurate but ~1 GB. Weights download once, then run offline.
+    Loads lazily so startup stays fast and a download failure degrades to fused ranking."""
 
     name = "cross-encoder"
 
-    def __init__(self, model_name: str):
-        from sentence_transformers import CrossEncoder  # optional dependency
+    def __init__(self, model_name: str, cache_dir: str | None = None):
+        import fastembed  # noqa: F401  (fail fast at build time if not installed)
 
-        self._model = CrossEncoder(model_name, max_length=512)
+        self.model_name, self.cache_dir = model_name, cache_dir
+        self._model = None
+        self._failed = False
+        self._lock = asyncio.Lock()
+
+    async def _get(self):
+        if self._model is None and not self._failed:
+            async with self._lock:
+                if self._model is None and not self._failed:
+                    from fastembed.rerank.cross_encoder import TextCrossEncoder
+
+                    try:
+                        self._model = await asyncio.to_thread(TextCrossEncoder, self.model_name, cache_dir=self.cache_dir)
+                    except Exception as e:
+                        log.warning("Could not load reranker %s (%s); using fused ranking", self.model_name, e)
+                        self._failed = True
+        return self._model
 
     async def score(self, query: str, passages: list[str]) -> list[float]:
         if not passages:
             return []
-        pairs = [(query, p) for p in passages]
-        raw = await asyncio.to_thread(self._model.predict, pairs, batch_size=16, show_progress_bar=False)
-        return [1 / (1 + math.exp(-float(x))) if not 0 <= float(x) <= 1 else float(x) for x in raw]
+        model = await self._get()
+        if model is None:
+            return await NoopReranker().score(query, passages)
+        raw = await asyncio.to_thread(lambda: list(model.rerank(query, passages, batch_size=16)))
+        return [1 / (1 + math.exp(-float(x))) for x in raw]  # logits -> 0..1
 
 
 class LLMReranker:
@@ -79,16 +96,10 @@ class LLMReranker:
 def build_reranker(settings: Settings, llm: LLM) -> Reranker:
     if settings.reranker == "cross-encoder":
         try:
-            return CrossEncoderReranker(settings.cross_encoder_model)
+            return CrossEncoderReranker(settings.cross_encoder_model, str(settings.models_dir))
         except ImportError:
-            log.warning(
-                "sentence-transformers not installed; falling back to LLM reranking. "
-                "Install with: pip install '.[rerank]'"
-            )
-            return LLMReranker(llm, settings.planner)
-        except Exception as e:
-            log.warning("Could not load cross-encoder %s (%s); falling back to LLM reranking.", settings.cross_encoder_model, e)
-            return LLMReranker(llm, settings.planner)
+            log.warning("fastembed not installed; reranking disabled. Install with: pip install fastembed")
+            return NoopReranker()
     if settings.reranker == "llm":
         return LLMReranker(llm, settings.planner)
     return NoopReranker()

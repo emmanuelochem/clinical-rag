@@ -43,7 +43,7 @@ export default function PatientsPage() {
           <Database className="mx-auto mb-2 text-muted" />
           No patients yet. Generate a synthetic cohort and index the bundled reference library.
           <div className="mt-3"><button className="btn-primary" onClick={seed} disabled={seeding}>{seeding ? <Spinner /> : null} Generate 30 synthetic patients</button></div>
-          <div className="mt-2 text-xs">Requires Ollama with the embedding model (it embeds clinical notes). This can take a minute.</div>
+          <div className="mt-2 text-xs">Embeddings run locally in the backend (the first run downloads a ~70 MB model). No API key needed for this step.</div>
         </Empty>
       )}
       {rows && rows.length > 0 && (

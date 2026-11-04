@@ -1,7 +1,7 @@
 [project]
 name = "clinical-rag"
 version = "1.0.0"
-description = "Local-first clinical decision-support RAG: hybrid retrieval, reranking, agentic planning, evidence-cited differentials"
+description = "Clinical decision-support RAG: hybrid retrieval, reranking, agentic planning, evidence-cited differentials"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115",
@@ -15,10 +15,10 @@ dependencies = [
   "python-docx>=1.1",
   "beautifulsoup4>=4.12",
   "lxml>=5",
+  "fastembed>=0.7",  # local embeddings + cross-encoder reranker (ONNX, CPU, no PyTorch)
 ]
 
 [project.optional-dependencies]
-rerank = ["sentence-transformers>=3.0"]
 dev = ["pytest>=8", "pytest-asyncio>=0.24"]
 
 [tool.pytest.ini_options]

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -18,9 +19,10 @@ from app.clinical import safety
 from app.config import get_settings
 from app.ingest.parsers import SUPPORTED_EXTENSIONS
 from app.ingest.pipeline import doc_id_for
+from app.providers.llm import KEY_HINT, PROVIDER_LABEL, LLMError
 from app.models import ChatRequest, DifferentialRequest, SearchRequest, UrlIngestRequest
 from app.services import Services, build_services
-from app.store.vectors import build_filter
+from app.store.vectors import EmbeddingMismatch, build_filter
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("app")
@@ -44,7 +46,13 @@ def create_app(services: Services | None = None) -> FastAPI:
             async for ev in events:
                 yield f"data: {json.dumps(ev, default=str)}\n\n".encode()
         except (httpx.ConnectError, httpx.ConnectTimeout):
-            yield _sse_err("Cannot reach Ollama. Is it running? (ollama serve)")
+            st = app.state.svc.settings
+            hint = " Is it running? (ollama serve)" if st.llm_provider == "ollama" or st.embed_provider == "ollama" else " Check your network connection."
+            yield _sse_err(f"Cannot reach {PROVIDER_LABEL.get(st.llm_provider, 'the model provider')} ({st.llm_base_url}).{hint}")
+        except httpx.ReadTimeout:
+            yield _sse_err("The model provider timed out. Try again, use Fast mode, or a smaller model.")
+        except (LLMError, EmbeddingMismatch) as e:
+            yield _sse_err(str(e))
         except Exception as e:
             log.exception("stream failed")
             yield _sse_err(str(e))
@@ -58,22 +66,38 @@ def create_app(services: Services | None = None) -> FastAPI:
 
     # ------------------------------------------------------------------ health
 
+    model_cache: dict = {"at": 0.0, "names": None, "error": None}
+
     @app.get("/api/health")
     async def health(request: Request):
         s = svc(request)
-        ollama: dict = {"reachable": False}
-        try:
-            async with httpx.AsyncClient(timeout=3) as c:
-                r = await c.get(f"{s.settings.ollama_url}/api/tags")
-                names = [m["name"] for m in r.json().get("models", [])]
-            need = {s.settings.chat_model, s.settings.planner, s.settings.embed_model}
-            have = lambda m: any(n == m or n.split(":")[0] == m or n == f"{m}:latest" for n in names)  # noqa: E731
-            ollama = {"reachable": True, "models": names, "missing": sorted(m for m in need if not have(m))}
-        except Exception:
-            pass
+        st = s.settings
+        llm: dict = {
+            "provider": st.llm_provider, "label": PROVIDER_LABEL.get(st.llm_provider, st.llm_provider),
+            "base_url": st.llm_base_url, "chat_model": st.chat_model, "planner_model": st.planner,
+            "key_configured": bool(st.api_key) or st.llm_provider == "ollama",
+            "key_hint": KEY_HINT.get(st.llm_provider), "reachable": False, "missing": [], "error": None,
+        }
+        if not llm["key_configured"]:
+            llm["error"] = f"No API key. Set {KEY_HINT.get(st.llm_provider, 'RAG_LLM_API_KEY')} in .env and restart."
+        elif hasattr(s.llm, "list_models"):
+            now = time.monotonic()
+            ttl = 300 if model_cache["names"] is not None else 15  # retry failures quickly
+            if (model_cache["names"] is None and model_cache["error"] is None) or now - model_cache["at"] > ttl:
+                try:
+                    model_cache.update(names=await asyncio.wait_for(s.llm.list_models(), 10), error=None, at=now)
+                except Exception as e:
+                    model_cache.update(names=None, error=str(e) or type(e).__name__, at=now)
+            if model_cache["names"] is not None:
+                names = model_cache["names"]
+                have = lambda m: any(n == m or n == f"{m}:latest" for n in names)  # noqa: E731
+                llm.update(reachable=True, missing=sorted(m for m in {st.chat_model, st.planner} if not have(m)))
+            else:
+                llm["error"] = f"Cannot list models: {model_cache['error']}"
         return {
-            "status": "ok", "ollama": ollama, "reranker": s.reranker.name,
-            "chat_model": s.settings.chat_model, "embed_model": s.settings.embed_model,
+            "status": "ok", "llm": llm,
+            "embeddings": {"provider": st.embed_provider, "model": st.embed_model, "index_mismatch": s.store.mismatch},
+            "reranker": s.reranker.name, "chat_model": st.chat_model, "embed_model": st.embed_model,
             "patients": s.db.one("SELECT COUNT(*) n FROM patients")["n"],
             "kb_documents": s.db.one("SELECT COUNT(*) n FROM documents WHERE scope='kb' AND status='ready'")["n"],
         }

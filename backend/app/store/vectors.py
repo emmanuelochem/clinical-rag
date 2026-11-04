@@ -45,14 +45,45 @@ def sanitize_fts(q: str) -> str:
     return " ".join(w for w in q.split() if w.lower() not in {"and", "or", "not"})
 
 
+class EmbeddingMismatch(RuntimeError):
+    pass
+
+
 class VectorStore:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, embed_id: str = ""):
+        path.mkdir(parents=True, exist_ok=True)
         self.db = lancedb.connect(str(path))
         self._lock = threading.Lock()
         self._table = None
         self._fts_dirty = False
+        self.embed_id = embed_id
+        self._meta_path = path / "embedding.json"
+        self.mismatch: str | None = None
         if TABLE in self.db.table_names():
             self._table = self.db.open_table(TABLE)
+            built_with = self._read_meta()
+            if built_with is None:
+                self._write_meta()
+            elif embed_id and built_with != embed_id:
+                self.mismatch = (
+                    f"The search index was built with embeddings '{built_with}' but the app is configured for "
+                    f"'{embed_id}'. Vectors from different models can't be mixed. Re-index with "
+                    "`python -m app.seed --wipe-all`, or set RAG_EMBED_PROVIDER / RAG_EMBED_MODEL back."
+                )
+
+    def _read_meta(self) -> str | None:
+        try:
+            return json.loads(self._meta_path.read_text())["embed_id"]
+        except (FileNotFoundError, KeyError, json.JSONDecodeError):
+            return None
+
+    def _write_meta(self) -> None:
+        if self.embed_id:
+            self._meta_path.write_text(json.dumps({"embed_id": self.embed_id}))
+
+    def _check(self) -> None:
+        if self.mismatch:
+            raise EmbeddingMismatch(self.mismatch)
 
     def _schema(self, dim: int) -> pa.Schema:
         return pa.schema(
@@ -73,6 +104,7 @@ class VectorStore:
             scope: str, patient_id: str = "", date: str = "") -> None:
         if not chunks:
             return
+        self._check()
         rows = [
             {
                 "id": c.id, "doc_id": c.doc_id, "scope": scope, "patient_id": patient_id, "ordinal": c.ordinal,
@@ -85,6 +117,11 @@ class VectorStore:
         with self._lock:
             if self._table is None:
                 self._table = self.db.create_table(TABLE, schema=self._schema(len(vectors[0])), exist_ok=True)
+                self._write_meta()
+            dim = self._table.schema.field("vector").type.list_size
+            if dim != len(vectors[0]):
+                raise EmbeddingMismatch(f"Embedding size {len(vectors[0])} does not match the index ({dim}). "
+                                        "Re-index with `python -m app.seed --wipe-all`.")
             self._table.add(rows)
             self._fts_dirty = True
 
@@ -101,6 +138,7 @@ class VectorStore:
                 self._fts_dirty = False
 
     def vector_search(self, vec: list[float], k: int, where: str | None) -> list[dict]:
+        self._check()
         if not self.ready:
             return []
         q = self._table.search(vec, query_type="vector").metric("cosine").limit(k)

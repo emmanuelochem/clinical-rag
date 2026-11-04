@@ -1,18 +1,20 @@
-.PHONY: install models seed backend frontend dev test eval
+.PHONY: install ollama-models seed backend frontend dev test eval
 
-install:            ## Install backend (with cross-encoder reranker) and frontend deps
-	cd backend && python3 -m venv .venv && .venv/bin/pip install -e '.[rerank,dev]'
+install:            ## Install backend and frontend deps
+	cd backend && python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 	cd frontend && npm install
+	@test -f .env || cp .env.example .env
+	@grep -q '^GROQ_API_KEY=.' .env || echo "\n>> Next: put your free Groq key in .env (GROQ_API_KEY=...). Get one at https://console.groq.com/keys\n"
 
-models:             ## Pull local models into Ollama
+ollama-models:      ## Only for the fully local setup (RAG_LLM_PROVIDER=ollama)
 	ollama pull qwen2.5:7b-instruct
 	ollama pull nomic-embed-text
 
-seed:               ## Generate 30 synthetic patients and index notes + bundled reference library
-	cd backend && .venv/bin/python -m app.seed
+seed:               ## Generate 30 synthetic patients and index notes + bundled reference library (no API key needed)
+	cd backend && set -a && . ../.env && set +a && .venv/bin/python -m app.seed
 
 backend:
-	cd backend && .venv/bin/uvicorn app.main:app --reload --port 8000
+	cd backend && set -a && . ../.env && set +a && .venv/bin/uvicorn app.main:app --reload --port 8000
 
 frontend:
 	cd frontend && npm run dev
@@ -25,4 +27,4 @@ test:
 	cd frontend && npm run typecheck
 
 eval:               ## Compare vector / BM25 / hybrid / hybrid+rerank retrieval
-	cd backend && .venv/bin/python -m app.eval.run
+	cd backend && set -a && . ../.env && set +a && .venv/bin/python -m app.eval.run

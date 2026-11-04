@@ -4,9 +4,14 @@ from __future__ import annotations
 
 from typing import Protocol
 
+import asyncio
+import logging
+
 import httpx
 
 from app.config import Settings
+
+log = logging.getLogger(__name__)
 
 
 class Embedder(Protocol):
@@ -46,3 +51,51 @@ class OllamaEmbedder:
         if self._dim is None:
             self._dim = len(await self.embed_query("dimension probe"))
         return self._dim
+
+
+class LocalEmbedder:
+    """In-process embeddings with fastembed (ONNX Runtime, CPU; no PyTorch, no server, no API key).
+
+    The model (BAAI/bge-small-en-v1.5 by default, ~70 MB) downloads from Hugging Face on first use
+    and is cached under ``<data_dir>/models``.
+    """
+
+    def __init__(self, settings: Settings, model=None):
+        self.s = settings
+        self._model = model
+        self._lock = asyncio.Lock()
+
+    async def _get(self):
+        if self._model is None:
+            async with self._lock:
+                if self._model is None:
+                    from fastembed import TextEmbedding
+
+                    log.info("Loading local embedding model %s (first run downloads it)", self.s.embed_model)
+                    try:
+                        self._model = await asyncio.to_thread(
+                            TextEmbedding, self.s.embed_model, cache_dir=str(self.s.models_dir))
+                    except Exception as e:
+                        raise RuntimeError(
+                            f"Could not load the local embedding model '{self.s.embed_model}'. The first run downloads it "
+                            f"from huggingface.co (needs internet access); it is then cached in {self.s.models_dir}. ({e})"
+                        ) from e
+        return self._model
+
+    async def _embed(self, texts: list[str]) -> list[list[float]]:
+        model = await self._get()
+        vecs = await asyncio.to_thread(lambda: list(model.embed(texts, batch_size=self.s.embed_batch_size)))
+        return [v.tolist() for v in vecs]
+
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return await self._embed([self.s.embed_doc_prefix + t for t in texts])
+
+    async def embed_query(self, text: str) -> list[float]:
+        return (await self._embed([self.s.embed_query_prefix + text]))[0]
+
+    async def dimension(self) -> int:
+        return len(await self.embed_query("dimension probe"))
+
+
+def build_embedder(settings: Settings) -> Embedder:
+    return OllamaEmbedder(settings) if settings.embed_provider == "ollama" else LocalEmbedder(settings)
