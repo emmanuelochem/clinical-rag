@@ -131,16 +131,22 @@ export function DifferentialPanel({ patientId, initialSymptoms = [], initialNote
               );
             })}
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="card p-4">
-              <div className="label mb-2">Recommended workup</div>
-              <ol className="list-decimal space-y-1 pl-5 text-sm">{result.recommended_workup.map((w, i) => <li key={i}>{w}</li>)}</ol>
+          {(result.recommended_workup.length > 0 || result.information_gaps.length > 0) && (
+            <div className="grid gap-3 md:grid-cols-2">
+              {result.recommended_workup.length > 0 && (
+                <div className="card p-4">
+                  <div className="label mb-2">Recommended workup</div>
+                  <ol className="list-decimal space-y-1 pl-5 text-sm">{result.recommended_workup.map((w, i) => <li key={i}>{w}</li>)}</ol>
+                </div>
+              )}
+              {result.information_gaps.length > 0 && (
+                <div className="card p-4">
+                  <div className="label mb-2 flex items-center gap-1"><HelpCircle size={13} />Information that would change the differential</div>
+                  <ul className="list-disc space-y-1 pl-5 text-sm">{result.information_gaps.map((w, i) => <li key={i}>{w}</li>)}</ul>
+                </div>
+              )}
             </div>
-            <div className="card p-4">
-              <div className="label mb-2 flex items-center gap-1"><HelpCircle size={13} />Information that would change the differential</div>
-              <ul className="list-disc space-y-1 pl-5 text-sm">{result.information_gaps.map((w, i) => <li key={i}>{w}</li>)}</ul>
-            </div>
-          </div>
+          )}
           <div>
             <div className="label mb-1.5">Evidence sources ({sources.length})</div>
             <div className="flex flex-wrap gap-1.5">

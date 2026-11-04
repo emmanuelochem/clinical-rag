@@ -56,10 +56,16 @@ def _validate(result: dict, n_sources: int) -> dict:
             "evidence_strength": sum(1 for s in sup if s["source"]),
         })
     diffs.sort(key=lambda d: (LIKELIHOOD_ORDER[d["likelihood"]], not d["cant_miss"], -d["evidence_strength"]))
+    workup = [str(x) for x in result.get("recommended_workup") or [] if str(x).strip()][:10]
+    if not workup:  # models sometimes omit it: derive from the leading and can't-miss diagnoses
+        for d in [x for x in diffs if x["likelihood"] == "high" or x["cant_miss"]][:4] or diffs[:2]:
+            for step in d["next_steps"][:2]:
+                if step.lower() not in {w.lower() for w in workup}:
+                    workup.append(step)
     return {
         "summary": str(result.get("summary") or ""),
         "differentials": diffs[:8],
-        "recommended_workup": [str(x) for x in result.get("recommended_workup") or []][:10],
+        "recommended_workup": workup[:10],
         "information_gaps": [str(x) for x in result.get("information_gaps") or []][:8],
     }
 

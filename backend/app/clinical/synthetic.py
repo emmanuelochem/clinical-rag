@@ -137,7 +137,9 @@ _rng = random.Random(0)
 
 
 def _clamp(code: str, v: float) -> float:
-    lo, hi = {"59408-5": (70, 100), "33914-3": (5, 130), "4548-4": (4.0, 15), "8310-5": (34, 42)}.get(code, (0, 1e9))
+    # Physiological floor: noise must never produce zero/negative results (e.g. ALT 0 U/L).
+    floor = NORMAL_BASE[code][0] * 0.3 if code in NORMAL_BASE else 0.0
+    lo, hi = {"59408-5": (70, 100), "33914-3": (5, 130), "4548-4": (4.0, 15), "8310-5": (34, 42)}.get(code, (floor, 1e9))
     return max(lo, min(hi, v))
 
 

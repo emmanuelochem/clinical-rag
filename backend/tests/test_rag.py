@@ -59,6 +59,8 @@ async def test_api_end_to_end(seeded):
         assert top["condition"] == "Acute coronary syndrome"
         assert [x["source"] for x in top["supporting"]] == [1, None]  # out-of-range citation nulled
         assert any(e["type"] == "alerts" for e in ev)
+        assert result["recommended_workup"] == ["ECG"]
+
 
         cohort = c.get("/api/cohort").json()
         assert cohort["n_patients"] == 12 and cohort["prevalence"]
@@ -79,3 +81,10 @@ async def test_upload_and_delete(services):
         c.delete(f"/api/documents/{did}")
         assert c.post("/api/search", json={"query": "colchicine flare", "scope": "kb"}).json() == []
         assert c.post("/api/documents", files=[("files", ("x.exe", b"MZ", "application/octet-stream"))]).status_code == 415
+
+
+def test_differential_workup_fallback():
+    from app.clinical.differential import _validate
+    derived = _validate({"differentials": [{"condition": "ACS", "likelihood": "high", "next_steps": ["ECG", "Troponin"]},
+                                           {"condition": "PE", "likelihood": "low", "cant_miss": True, "next_steps": ["ecg", "CTPA"]}]}, 3)
+    assert derived["recommended_workup"] == ["ECG", "Troponin", "CTPA"]

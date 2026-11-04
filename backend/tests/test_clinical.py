@@ -9,6 +9,8 @@ def test_generator_is_deterministic_and_coherent():
     assert any(n["type"] == "ED triage note" for n in a["notes"])
     pids = {p["id"] for p in a["patients"]}
     assert all(o["patient_id"] in pids for o in a["observations"])
+    big = generate(60, seed=11)
+    assert all(o["value"] > 0 for o in big["observations"])
 
 
 def test_catalog_resolution_and_flags():

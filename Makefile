@@ -11,10 +11,10 @@ ollama-models:      ## Only for the fully local setup (RAG_LLM_PROVIDER=ollama)
 	ollama pull nomic-embed-text
 
 seed:               ## Generate 30 synthetic patients and index notes + bundled reference library (no API key needed)
-	cd backend && set -a && . ../.env && set +a && .venv/bin/python -m app.seed
+	cd backend && .venv/bin/python -m app.seed
 
 backend:
-	cd backend && set -a && . ../.env && set +a && .venv/bin/uvicorn app.main:app --reload --port 8000
+	cd backend && .venv/bin/uvicorn app.main:app --reload --port 8000
 
 frontend:
 	cd frontend && npm run dev
@@ -27,4 +27,4 @@ test:
 	cd frontend && npm run typecheck
 
 eval:               ## Compare vector / BM25 / hybrid / hybrid+rerank retrieval
-	cd backend && set -a && . ../.env && set +a && .venv/bin/python -m app.eval.run
+	cd backend && .venv/bin/python -m app.eval.run
