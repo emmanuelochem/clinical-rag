@@ -9,6 +9,7 @@ from app.store.vectors import build_filter, sanitize_fts
 
 def test_citation_extraction_and_fts_sanitizing():
     assert extract_citations("a [1] b [2, 3] c [9] [1]", 3) == [1, 2, 3]
+    assert extract_citations("BP 164/96 【1†L3-L5】 and K 【4†source】 [2]", 5) == [1, 4, 2]
     assert sanitize_fts('chest "pain" AND (fever) OR x:y') == "chest pain fever x y"
 
 
@@ -88,3 +89,14 @@ def test_differential_workup_fallback():
     derived = _validate({"differentials": [{"condition": "ACS", "likelihood": "high", "next_steps": ["ECG", "Troponin"]},
                                            {"condition": "PE", "likelihood": "low", "cant_miss": True, "next_steps": ["ecg", "CTPA"]}]}, 3)
     assert derived["recommended_workup"] == ["ECG", "Troponin", "CTPA"]
+
+
+def test_ping_and_keepalive(services):
+    services.settings.keepalive_token = "s3cret"
+    with TestClient(create_app(services)) as c:
+        assert c.get("/api/ping").json() == {"status": "ok"}
+        assert c.get("/api/keepalive").status_code == 401
+        first = c.get("/api/keepalive", params={"token": "s3cret"}).json()
+        assert first["status"] == "ok" and first["warmed_now"] is True
+        again = c.get("/api/keepalive", params={"token": "s3cret"}).json()
+        assert again["warmed_now"] is False and again["uptime_seconds"] >= 0

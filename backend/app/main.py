@@ -68,6 +68,22 @@ def create_app(services: Services | None = None) -> FastAPI:
 
     model_cache: dict = {"at": 0.0, "names": None, "error": None}
 
+    @app.get("/api/ping")
+    async def ping():
+        """Liveness probe: no I/O, returns immediately."""
+        return {"status": "ok"}
+
+    @app.get("/api/keepalive")
+    async def keepalive(request: Request, token: str = ""):
+        """Target for an external cron (e.g. Cloud Scheduler every 10 min). Keeps the instance warm
+        and, on a freshly started instance, loads models + index so visitors never pay that cost."""
+        s = svc(request)
+        if s.settings.keepalive_token and token != s.settings.keepalive_token:
+            raise HTTPException(401, "Invalid keepalive token")
+        result = await s.warm_up()
+        return {"status": "ok", "uptime_seconds": round(time.monotonic() - s.started_at, 1), **result}
+
+
     @app.get("/api/health")
     async def health(request: Request):
         s = svc(request)

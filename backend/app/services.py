@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import logging
+import time
+from dataclasses import dataclass, field
 
 from app.agent.orchestrator import ClinicalAgent
 from app.clinical.differential import DifferentialEngine
@@ -30,6 +32,25 @@ class Services:
     ingestor: Ingestor
     agent: ClinicalAgent
     differential: DifferentialEngine
+    started_at: float = field(default_factory=time.monotonic)
+    warmed_at: float | None = None
+
+    async def warm_up(self) -> dict:
+        """Load the embedding model, reranker and search index so the first real request is fast.
+
+        Idempotent: after the first call it does nothing. Used by /api/keepalive (external cron)
+        and at image build time to pre-download model weights.
+        """
+        if self.warmed_at is not None:
+            return {"warmed_now": False, "warm_seconds": 0.0}
+        t = time.monotonic()
+        await self.embedder.embed_query("warm up")
+        await self.reranker.score("warm up", ["warm up"])
+        self.store.refresh_fts()
+        self.warmed_at = time.monotonic()
+        took = round(self.warmed_at - t, 2)
+        logging.getLogger(__name__).info("Warm-up complete in %.2fs", took)
+        return {"warmed_now": True, "warm_seconds": took}
 
 
 def build_services(settings: Settings, *, embedder: Embedder | None = None, llm: LLM | None = None,

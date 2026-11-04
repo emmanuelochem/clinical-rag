@@ -91,6 +91,9 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:3000"]
 
+    # Optional shared secret for /api/keepalive (?token=...). Empty = open endpoint (it only warms caches).
+    keepalive_token: str = ""
+
     @model_validator(mode="after")
     def _apply_presets(self) -> "Settings":
         base, chat, planner = LLM_PRESETS[self.llm_provider]

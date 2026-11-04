@@ -89,6 +89,8 @@ docker compose up --build
 docker compose exec backend python -m app.seed
 ```
 
+**Hosting for free:** the repo includes a one-command deploy to **Google Cloud Run** (free tier) with a keep-alive cron job. See [deploy/CLOUD_RUN.md](deploy/CLOUD_RUN.md).
+
 ### Choosing a chat provider
 
 | Provider | Setup in `.env` | Default models (answer / planning) |
@@ -160,6 +162,7 @@ make eval
 | POST | `/api/search` | Raw hybrid retrieval with diagnostics |
 | GET/POST/DELETE | `/api/documents…` | Knowledge base management |
 | GET | `/api/cohort` · `/api/audit` | Analytics · audit log |
+| GET | `/api/ping` · `/api/keepalive?token=` | Liveness · warm-up target for an external cron |
 | POST | `/api/admin/seed` | Generate synthetic data |
 
 ## Going to production

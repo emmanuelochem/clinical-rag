@@ -23,7 +23,8 @@ export function CitationChip({ n, source, onOpen }: { n: number; source?: Source
 export function CitedMarkdown({ text, sources, onOpen, streaming }: {
   text: string; sources: Source[]; onOpen: (n: number) => void; streaming?: boolean;
 }) {
-  const linked = text.replace(/\[(\d+(?:\s*,\s*\d+)*)\](?!\()/g, (_, g: string) =>
+  // Normalise model-native citation markers such as 【3†L1-L4】 to [3] before linking.
+  const linked = text.replace(/【(\d+)(?:†[^】]*)?】/g, "[$1]").replace(/\[(\d+(?:\s*,\s*\d+)*)\](?!\()/g, (_, g: string) =>
     g.split(",").map((x) => `[${x.trim()}](#cite-${x.trim()})`).join(""));
   return (
     <div className={`prose-clin ${streaming ? "caret" : ""}`}>

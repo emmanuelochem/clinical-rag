@@ -70,7 +70,16 @@ class SourceBook:
         return [{k: v for k, v in s.items() if k != "key"} for s in self.items]
 
 
+# Some models (e.g. gpt-oss) emit their native citation style "【3†L1-L4】" instead of "[3]".
+NATIVE_CITE = re.compile(r"【(\d+)(?:†[^】]*)?】")
+
+
+def normalize_citations(text: str) -> str:
+    return NATIVE_CITE.sub(r"[\1]", text)
+
+
 def extract_citations(text: str, n_sources: int) -> list[int]:
+    text = normalize_citations(text)
     nums = []
     for m in re.finditer(r"\[(\d+(?:\s*,\s*\d+)*)\]", text):
         for x in m.group(1).split(","):

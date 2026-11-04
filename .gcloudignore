@@ -1,0 +1,13 @@
+**/node_modules
+**/.next
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/*.tsbuildinfo
+backend/data
+data
+docs
+.git
+.env
+*.bundle
+.gcloudignore
