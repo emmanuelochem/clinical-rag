@@ -7,7 +7,7 @@ export default function AssistantPage() {
   return (
     <div className="mx-auto flex h-[calc(100vh-130px)] max-w-3xl flex-col">
       <div className="mb-3">
-        <h1 className="flex items-center gap-2 text-xl font-semibold"><BookOpen size={20} className="text-accent" />Reference Q&amp;A</h1>
+        <h1 className="flex items-center gap-2 text-xl font-semibold"><BookOpen size={20} className="text-accent" />Ask AI</h1>
         <p className="text-sm text-muted">Questions answered from the medical knowledge base only, no patient data. Open a patient to ask about their record.</p>
       </div>
       <div className="min-h-0 flex-1">
