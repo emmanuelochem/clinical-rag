@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AlertOctagon, Database, Search } from "lucide-react";
 import { fmtDate, getJSON, sendJSON } from "@/lib/api";
@@ -12,6 +13,15 @@ export default function PatientsPage() {
   const [rows, setRows] = useState<PatientRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
+  const router = useRouter();
+
+  // Whole-row click opens the patient. The name stays a real link (keyboard, middle-click, new tab).
+  const openRow = (e: React.MouseEvent, href: string) => {
+    if ((e.target as HTMLElement).closest("a, button")) return; // the link handles its own clicks
+    if (window.getSelection()?.toString()) return; // user is selecting text (e.g. copying an MRN)
+    if (e.metaKey || e.ctrlKey) window.open(href, "_blank", "noopener");
+    else router.push(href);
+  };
 
   const load = (query: string) =>
     getJSON<PatientRow[]>(`/api/patients?q=${encodeURIComponent(query)}`).then((r) => { setRows(r); setError(null); }).catch((e) => setError(String(e)));
@@ -59,7 +69,8 @@ export default function PatientsPage() {
               </thead>
               <tbody>
                 {rows.map((p) => (
-                  <tr key={p.id} className="border-t border-line hover:bg-panel-2/60">
+                  <tr key={p.id} onClick={(e) => openRow(e, `/patients/${p.id}`)}
+                    className="cursor-pointer border-t border-line hover:bg-panel-2/60">
                     <td className="px-4 py-2.5">
                       <Link href={`/patients/${p.id}`} className="font-medium text-accent hover:underline">{p.last_name}, {p.first_name}</Link>
                       {p.n_critical > 0 && (
