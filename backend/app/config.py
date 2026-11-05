@@ -99,6 +99,11 @@ class Settings(BaseSettings):
     # Optional shared secret for /api/keepalive (?token=...). Empty = open endpoint (it only warms caches).
     keepalive_token: str = ""
 
+    # Knowledge-base writes: file upload, URL ingest, document delete and the admin re-seed endpoint.
+    # Enabled for local development; set to false on public demo/staging deployments, where the
+    # backend then rejects these requests even if someone bypasses the frontend.
+    kb_writes_enabled: bool = True
+
     @model_validator(mode="after")
     def _apply_presets(self) -> "Settings":
         base, chat, planner = LLM_PRESETS[self.llm_provider]

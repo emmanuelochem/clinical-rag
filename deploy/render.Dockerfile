@@ -19,5 +19,7 @@ RUN python -m app.seed && python -m app.warmup && rm -rf /root/.cache
 # Runtime tuning for 512 MB and a small CPU share: reranker off (set above), one ONNX thread,
 # fewer glibc malloc arenas (less memory fragmentation).
 ENV RAG_ONNX_THREADS=1 OMP_NUM_THREADS=1 MALLOC_ARENA_MAX=2
+# Staging: public demo, so the backend refuses upload / URL ingest / delete / re-seed requests.
+ENV RAG_KB_WRITES_ENABLED=false
 EXPOSE 10000
 CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000} --workers 1 --log-level warning"]

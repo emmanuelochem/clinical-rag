@@ -152,3 +152,8 @@ Push to `main` on GitHub:
 - **Groq free tier:** many requests within a minute can hit Groq's rate limit; the app waits and
   retries automatically, so answers arrive later. Fast mode uses fewer requests.
 - **No login:** anyone with the link can use the app and your Groq quota.
+- **Knowledge-base changes are locked:** the hosted images set `RAG_KB_WRITES_ENABLED=false`, so the
+  backend refuses file upload, URL ingest, document delete and re-seed requests with `403`, and the
+  Knowledge base page shows a notice and a toast instead. To allow them (for example on a private
+  deployment), set `RAG_KB_WRITES_ENABLED=true` in Render and restore the commented-out code in
+  `frontend/app/knowledge/page.tsx`.

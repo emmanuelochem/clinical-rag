@@ -30,6 +30,9 @@ RUN python -m app.seed && python -m app.warmup && rm -rf /root/.cache
 
 COPY --from=web /web/.next/standalone /app/web
 COPY --from=web /web/.next/static /app/web/.next/static
+# Staging: public demo, so the backend refuses upload / URL ingest / delete / re-seed requests.
+ENV RAG_KB_WRITES_ENABLED=false
+
 COPY deploy/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 

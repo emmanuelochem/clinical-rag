@@ -13,7 +13,7 @@ from pathlib import Path
 import httpx
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from app.clinical import safety
 from app.config import get_settings
@@ -28,6 +28,21 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger("app")
 
 
+KB_WRITES_DISABLED_MESSAGE = (
+    "Adding, removing and re-seeding knowledge-base content is disabled in this staging environment "
+    "(public demo with no login and temporary storage)."
+)
+
+
+def is_kb_write(method: str, path: str) -> bool:
+    """Requests that change the knowledge base or demo data."""
+    path = path.rstrip("/")
+    return (
+        (method == "POST" and path in ("/api/documents", "/api/documents/url", "/api/admin/seed"))
+        or (method == "DELETE" and path.startswith("/api/documents/"))
+    )
+
+
 def create_app(services: Services | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -36,6 +51,16 @@ def create_app(services: Services | None = None) -> FastAPI:
 
     app = FastAPI(title="Clinical RAG", version="1.0.0", lifespan=lifespan)
     settings = services.settings if services else get_settings()
+
+    # Staging lock for knowledge-base writes. Runs as middleware so the request is refused before
+    # any upload body is read. Registered before CORS so the 403 still carries CORS headers and the
+    # browser shows this message rather than a CORS error.
+    @app.middleware("http")
+    async def kb_write_guard(request: Request, call_next):
+        if not settings.kb_writes_enabled and is_kb_write(request.method, request.url.path):
+            return JSONResponse(status_code=403, content={"detail": KB_WRITES_DISABLED_MESSAGE})
+        return await call_next(request)
+
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins,
                        allow_origin_regex=settings.cors_origin_regex or None, allow_methods=["*"], allow_headers=["*"])
 

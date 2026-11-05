@@ -128,3 +128,33 @@ async def test_neighbor_context_is_attached(seeded):
             assert h.context_before == chunks[h.chunk.ordinal - 1]
         if h.context_after:
             assert h.context_after == chunks[h.chunk.ordinal + 1]
+
+
+def test_staging_blocks_kb_writes_server_side(services):
+    services.settings.kb_writes_enabled = False
+    services.settings.cors_origins = ["https://frontend.example.app"]
+    origin = {"Origin": "https://frontend.example.app"}
+    with TestClient(create_app(services)) as c:
+        blocked = [
+            c.post("/api/documents", files=[("files", ("x.md", b"# X\n\ntext", "text/markdown"))], headers=origin),
+            c.post("/api/documents/url", json={"url": "https://example.com"}, headers=origin),
+            c.delete("/api/documents/abc123", headers=origin),
+            c.post("/api/admin/seed?reset=true", headers=origin),
+            c.post("/api/documents/", files=[("files", ("x.md", b"x", "text/markdown"))]),  # trailing slash
+        ]
+        for r in blocked:
+            assert r.status_code == 403 and "staging" in r.json()["detail"]
+        # The 403 carries CORS headers, so the browser shows the message instead of a CORS error.
+        assert blocked[0].headers["access-control-allow-origin"] == "https://frontend.example.app"
+        assert c.get("/api/documents").json() == []  # nothing was ingested
+        # Reading, search and the assistant are unaffected.
+        assert c.get("/api/documents").status_code == 200
+        assert c.post("/api/search", json={"query": "potassium"}).status_code == 200
+        assert c.get("/api/health").status_code == 200
+
+
+def test_kb_writes_allowed_by_default(services):
+    assert services.settings.kb_writes_enabled is True
+    with TestClient(create_app(services)) as c:
+        r = c.post("/api/documents", files=[("files", ("g.md", b"# Gout\n\nColchicine.", "text/markdown"))])
+        assert r.status_code == 200
