@@ -100,3 +100,31 @@ def test_ping_and_keepalive(services):
         assert first["status"] == "ok" and first["warmed_now"] is True
         again = c.get("/api/keepalive", params={"token": "s3cret"}).json()
         assert again["warmed_now"] is False and again["uptime_seconds"] >= 0
+
+
+def test_cors_allows_configured_frontend_origins(settings):
+    from app.services import build_services
+    from tests.conftest import FakeLLM, HashEmbedder
+
+    settings.cors_origins = ["https://clinical-rag.vercel.app"]
+    settings.cors_origin_regex = r"https://clinical-rag[a-z0-9-]*\.vercel\.app"
+    svc = build_services(settings, embedder=HashEmbedder(), llm=FakeLLM())
+    with TestClient(create_app(svc)) as c:
+        def preflight(origin):
+            return c.options("/api/chat", headers={"Origin": origin, "Access-Control-Request-Method": "POST",
+                                                   "Access-Control-Request-Headers": "content-type"})
+        ok = preflight("https://clinical-rag-git-main-emmanuelochem.vercel.app")
+        assert ok.status_code == 200 and ok.headers["access-control-allow-origin"].endswith(".vercel.app")
+        assert "access-control-allow-origin" not in preflight("https://evil.example.com").headers
+
+
+async def test_neighbor_context_is_attached(seeded):
+    s = seeded
+    hits = await s.retriever.search("potassium ECG peaked T waves calcium", where=build_filter("kb"), top_k=5)
+    assert any(h.context_before or h.context_after for h in hits)
+    for h in hits:  # context must come from the same document, adjacent ordinals
+        chunks = {c["ordinal"]: c["text"] for c in s.store.doc_chunks(h.chunk.doc_id)}
+        if h.context_before:
+            assert h.context_before == chunks[h.chunk.ordinal - 1]
+        if h.context_after:
+            assert h.context_after == chunks[h.chunk.ordinal + 1]

@@ -100,14 +100,20 @@ class HybridRetriever:
     def _finalize(self, selected: list[_Cand]) -> list[RetrievedChunk]:
         out = []
         n = self.s.neighbor_expansion
+        nb: dict[tuple[str, int], str] = {}
+        if n:
+            wanted: dict[str, list[int]] = {}
+            for c in selected:
+                o = c.row["ordinal"]
+                wanted.setdefault(c.row["doc_id"], []).extend(x for x in range(o - n, o + n + 1) if x != o and x >= 0)
+            nb = self.store.neighbors_many(wanted)
         for c in selected:
             r = c.row
             before = after = ""
             if n:
-                ords = [o for o in range(r["ordinal"] - n, r["ordinal"] + n + 1) if o != r["ordinal"] and o >= 0]
-                nb = self.store.neighbors(r["doc_id"], ords)
-                before = "\n\n".join(nb[o] for o in sorted(nb) if o < r["ordinal"])
-                after = "\n\n".join(nb[o] for o in sorted(nb) if o > r["ordinal"])
+                doc, o = r["doc_id"], r["ordinal"]
+                before = "\n\n".join(nb[(doc, x)] for x in range(o - n, o) if (doc, x) in nb)
+                after = "\n\n".join(nb[(doc, x)] for x in range(o + 1, o + n + 1) if (doc, x) in nb)
             out.append(RetrievedChunk(
                 chunk=row_to_chunk(r), doc_title=r["doc_title"], source=r["source"], scope=r.get("scope") or "kb",
                 date=r.get("date") or "", score=round(float(r["_final"]), 4), vector_rank=c.vector_rank,

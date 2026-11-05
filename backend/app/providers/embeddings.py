@@ -74,7 +74,8 @@ class LocalEmbedder:
                     log.info("Loading local embedding model %s (first run downloads it)", self.s.embed_model)
                     try:
                         self._model = await asyncio.to_thread(
-                            TextEmbedding, self.s.embed_model, cache_dir=str(self.s.models_dir))
+                            TextEmbedding, self.s.embed_model, cache_dir=str(self.s.models_dir),
+                            threads=self.s.onnx_threads or None)
                     except Exception as e:
                         raise RuntimeError(
                             f"Could not load the local embedding model '{self.s.embed_model}'. The first run downloads it "

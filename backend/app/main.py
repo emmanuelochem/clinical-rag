@@ -36,7 +36,8 @@ def create_app(services: Services | None = None) -> FastAPI:
 
     app = FastAPI(title="Clinical RAG", version="1.0.0", lifespan=lifespan)
     settings = services.settings if services else get_settings()
-    app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["*"], allow_headers=["*"])
+    app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins,
+                       allow_origin_regex=settings.cors_origin_regex or None, allow_methods=["*"], allow_headers=["*"])
 
     def svc(request: Request) -> Services:
         return request.app.state.svc

@@ -1,0 +1,26 @@
+# Render Blueprint for the backend API (one free web service).
+# Dashboard: New → Blueprint → pick this repo. Full steps: deploy/RENDER_VERCEL.md
+services:
+  - type: web
+    name: clinical-rag-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./deploy/render.Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/ping
+    autoDeploy: true
+    buildFilter:              # frontend-only commits don't rebuild the backend
+      paths:
+        - backend/**
+        - deploy/render.Dockerfile
+        - render.yaml
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false           # Render asks you to paste it when you create the Blueprint
+      - key: RAG_KEEPALIVE_TOKEN
+        generateValue: true   # random secret for /api/keepalive?token=...
+      - key: RAG_CORS_ORIGINS
+        value: '["https://clinical-rag.vercel.app"]'
+      - key: RAG_CORS_ORIGIN_REGEX
+        value: 'https://clinical-rag[a-z0-9-]*\.vercel\.app'

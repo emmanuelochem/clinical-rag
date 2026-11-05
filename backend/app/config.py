@@ -90,6 +90,11 @@ class Settings(BaseSettings):
     url_fetch_timeout: float = 20.0
 
     cors_origins: list[str] = ["http://localhost:3000"]
+    # Extra allowed browser origins as a regex, e.g. Vercel production + preview URLs:
+    #   https://clinical-rag[a-z0-9-]*\.vercel\.app
+    cors_origin_regex: str = ""
+    # ONNX Runtime threads for local embeddings/reranking (0 = auto). Use 1 on tiny shared CPUs.
+    onnx_threads: int = 0
 
     # Optional shared secret for /api/keepalive (?token=...). Empty = open endpoint (it only warms caches).
     keepalive_token: str = ""

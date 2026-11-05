@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FileUp, Globe, Search, Trash2, ExternalLink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { fmtDate, getJSON, sendJSON } from "@/lib/api";
+import { api, fmtDate, getJSON, sendJSON } from "@/lib/api";
 import type { KbDocument } from "@/lib/types";
 import { Empty, Spinner } from "@/components/ui";
 
@@ -35,7 +35,7 @@ export default function KnowledgePage() {
     [...files].forEach((f) => fd.append("files", f));
     setBusy(true); setMsg(null);
     try {
-      const r = await fetch("/api/documents", { method: "POST", body: fd });
+      const r = await fetch(api("/api/documents"), { method: "POST", body: fd });
       if (!r.ok) throw new Error(await r.text());
       await load();
     } catch (e) { setMsg(String(e)); } finally { setBusy(false); }
@@ -119,10 +119,10 @@ export default function KnowledgePage() {
                 <span className={`rounded px-2 py-0.5 text-xs font-medium ${STATUS[d.status]}`}>{d.status === "processing" ? <><Spinner size={10} /> processing</> : d.status}</span>
                 <span className="w-20 text-right text-xs tabular-nums text-muted">{d.num_chunks} chunks</span>
                 {(d.has_file || d.source.startsWith("http")) && (
-                  <a href={d.source.startsWith("http") ? d.source : `/api/documents/${d.id}/file`} target="_blank" rel="noreferrer" className="rounded p-1 text-muted hover:bg-panel-2" aria-label="Open"><ExternalLink size={15} /></a>
+                  <a href={d.source.startsWith("http") ? d.source : api(`/api/documents/${d.id}/file`)} target="_blank" rel="noreferrer" className="rounded p-1 text-muted hover:bg-panel-2" aria-label="Open"><ExternalLink size={15} /></a>
                 )}
                 <button className="rounded p-1 text-muted hover:bg-critical-soft hover:text-critical" aria-label="Delete"
-                  onClick={async () => { if (confirm(`Delete "${d.title}" from the knowledge base?`)) { await fetch(`/api/documents/${d.id}`, { method: "DELETE" }); load(); } }}>
+                  onClick={async () => { if (confirm(`Delete "${d.title}" from the knowledge base?`)) { await fetch(api(`/api/documents/${d.id}`), { method: "DELETE" }); load(); } }}>
                   <Trash2 size={15} />
                 </button>
               </li>

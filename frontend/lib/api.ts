@@ -1,20 +1,28 @@
 import type { AgentEvent } from "./types";
 
+/** Backend origin. Empty (default) = same origin, with /api proxied by Next.js (local dev, Docker,
+ * Cloud Run). Set NEXT_PUBLIC_API_URL when the frontend and backend are hosted separately, e.g.
+ * frontend on Vercel and backend on Render: https://clinical-rag-api.onrender.com */
+export const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/+$/, "");
+
+/** Absolute URL for an API path such as "/api/health". */
+export const api = (path: string) => (path.startsWith("/api") ? API_BASE + path : path);
+
 export async function getJSON<T>(path: string): Promise<T> {
-  const r = await fetch(path, { cache: "no-store" });
+  const r = await fetch(api(path), { cache: "no-store" });
   if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
   return r.json();
 }
 
 export async function sendJSON<T>(path: string, body: unknown, method = "POST"): Promise<T> {
-  const r = await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const r = await fetch(api(path), { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
   return r.json();
 }
 
 /** POST a JSON body and iterate over the server-sent events it streams back. */
 export async function* streamEvents(path: string, body: unknown, signal?: AbortSignal): AsyncGenerator<AgentEvent> {
-  const r = await fetch(path, {
+  const r = await fetch(api(path), {
     method: "POST", headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
     body: JSON.stringify(body), signal,
   });

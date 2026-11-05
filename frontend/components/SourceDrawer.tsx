@@ -5,7 +5,7 @@ import { BookOpen, ClipboardList, ExternalLink, FileText, X } from "lucide-react
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Note, Series, Source } from "@/lib/types";
-import { fmtDate, getJSON } from "@/lib/api";
+import { api, fmtDate, getJSON } from "@/lib/api";
 import { TrendChart } from "./TrendChart";
 
 const KIND = {
@@ -72,7 +72,7 @@ export function SourceDrawer({ source, onClose }: { source: Source | null; onClo
             </div>
           )}
           {source.kind === "kb" && source.doc_id && (
-            <a className="btn-ghost w-fit" href={source.source?.startsWith("http") ? source.source : `/api/documents/${source.doc_id}/file${source.page ? `#page=${source.page}` : ""}`}
+            <a className="btn-ghost w-fit" href={source.source?.startsWith("http") ? source.source : api(`/api/documents/${source.doc_id}/file${source.page ? `#page=${source.page}` : ""}`)}
               target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open original</a>
           )}
 

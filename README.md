@@ -89,7 +89,9 @@ docker compose up --build
 docker compose exec backend python -m app.seed
 ```
 
-**Hosting for free:** the repo includes a one-command deploy to **Google Cloud Run** (free tier) with a keep-alive cron job. See [deploy/CLOUD_RUN.md](deploy/CLOUD_RUN.md).
+**Hosting for free:**
+- **Vercel + Render** (no Google/AWS billing needed): frontend on Vercel, backend on Render's free tier, kept awake by a cron ping. See [deploy/RENDER_VERCEL.md](deploy/RENDER_VERCEL.md).
+- **Google Cloud Run** (free tier, needs a billing account): one-command deploy with a keep-alive job. See [deploy/CLOUD_RUN.md](deploy/CLOUD_RUN.md).
 
 ### Choosing a chat provider
 

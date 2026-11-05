@@ -35,10 +35,10 @@ class CrossEncoderReranker:
 
     name = "cross-encoder"
 
-    def __init__(self, model_name: str, cache_dir: str | None = None):
+    def __init__(self, model_name: str, cache_dir: str | None = None, threads: int | None = None):
         import fastembed  # noqa: F401  (fail fast at build time if not installed)
 
-        self.model_name, self.cache_dir = model_name, cache_dir
+        self.model_name, self.cache_dir, self.threads = model_name, cache_dir, threads
         self._model = None
         self._failed = False
         self._lock = asyncio.Lock()
@@ -50,7 +50,8 @@ class CrossEncoderReranker:
                     from fastembed.rerank.cross_encoder import TextCrossEncoder
 
                     try:
-                        self._model = await asyncio.to_thread(TextCrossEncoder, self.model_name, cache_dir=self.cache_dir)
+                        self._model = await asyncio.to_thread(TextCrossEncoder, self.model_name, cache_dir=self.cache_dir,
+                                                             threads=self.threads)
                     except Exception as e:
                         log.warning("Could not load reranker %s (%s); using fused ranking", self.model_name, e)
                         self._failed = True
@@ -96,7 +97,8 @@ class LLMReranker:
 def build_reranker(settings: Settings, llm: LLM) -> Reranker:
     if settings.reranker == "cross-encoder":
         try:
-            return CrossEncoderReranker(settings.cross_encoder_model, str(settings.models_dir))
+            return CrossEncoderReranker(settings.cross_encoder_model, str(settings.models_dir),
+                                        settings.onnx_threads or None)
         except ImportError:
             log.warning("fastembed not installed; reranking disabled. Install with: pip install fastembed")
             return NoopReranker()

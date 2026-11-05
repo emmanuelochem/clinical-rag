@@ -168,6 +168,18 @@ class VectorStore:
         rows = self._table.search().where(where).select(["ordinal", "text"]).limit(len(ordinals)).to_list()
         return {r["ordinal"]: r["text"] for r in rows}
 
+    def neighbors_many(self, wanted: dict[str, list[int]]) -> dict[tuple[str, int], str]:
+        """Fetch adjacent chunks for many documents in ONE query (one scan instead of one per hit,
+        which matters on small shared CPUs). Returns {(doc_id, ordinal): text}."""
+        wanted = {d: sorted(set(o)) for d, o in wanted.items() if o}
+        if not self.ready or not wanted:
+            return {}
+        where = " OR ".join(
+            f"(doc_id = {_quote(d)} AND ordinal IN ({', '.join(map(str, o))}))" for d, o in wanted.items())
+        limit = sum(len(o) for o in wanted.values())
+        rows = self._table.search().where(where).select(["doc_id", "ordinal", "text"]).limit(limit).to_list()
+        return {(r["doc_id"], r["ordinal"]): r["text"] for r in rows}
+
     def doc_chunks(self, doc_id: str) -> list[dict]:
         if not self.ready:
             return []
