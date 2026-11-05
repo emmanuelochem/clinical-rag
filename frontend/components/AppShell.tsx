@@ -25,8 +25,8 @@ function status(h: Health | null): { tone: "ok" | "warn" | "bad"; text: string }
 }
 
 const NAV = [
-  { href: "/", label: "Patients", icon: Users },
   { href: "/cohort", label: "Cohort", icon: Activity },
+  { href: "/", label: "Patients", icon: Users },
   { href: "/assistant", label: "Reference Q&A", icon: MessagesSquare },
   { href: "/knowledge", label: "Knowledge base", icon: BookOpen },
 ];
