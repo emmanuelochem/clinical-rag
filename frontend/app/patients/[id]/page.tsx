@@ -47,7 +47,7 @@ export default function PatientPage({ params }: { params: Promise<{ id: string }
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start gap-4">
-        <Link href="/" className="mt-1 rounded-lg p-1.5 text-muted hover:bg-panel-2" aria-label="Back"><ArrowLeft size={18} /></Link>
+        <Link href="/patients" className="mt-1 rounded-lg p-1.5 text-muted hover:bg-panel-2" aria-label="Back to patients"><ArrowLeft size={18} /></Link>
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold">{p.first_name} {p.last_name}
             <span className="ml-2 align-middle text-sm font-normal text-muted">{p.age} y · {p.sex} · MRN {p.mrn}</span></h1>

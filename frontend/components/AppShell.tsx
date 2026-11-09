@@ -26,7 +26,7 @@ function status(h: Health | null): { tone: "ok" | "warn" | "bad"; text: string }
 
 const NAV = [
   { href: "/cohort", label: "Cohort", icon: Activity },
-  { href: "/", label: "Patients", icon: Users },
+  { href: "/patients", label: "Patients", icon: Users },
   { href: "/assistant", label: "Ask AI", icon: MessagesSquare },
   { href: "/knowledge", label: "Knowledge base", icon: BookOpen },
 ];
@@ -61,13 +61,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-30 border-b border-line bg-panel/90 backdrop-blur">
         <div className="mx-auto flex max-w-[1500px] items-center gap-4 px-4 py-2.5">
-          <Link href="/" className="flex items-center gap-2 font-semibold">
+          <Link href="/cohort" className="flex items-center gap-2 font-semibold">
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-accent text-white dark:text-black"><Stethoscope size={16} /></span>
             <span className="hidden sm:inline">Clinical RAG</span>
           </Link>
           <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
             {NAV.map(({ href, label, icon: Icon }) => {
-              const active = href === "/" ? path === "/" || path.startsWith("/patients") : path.startsWith(href);
+              const active = path.startsWith(href);
               return (
                 <Link key={href} href={href}
                   className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm ${active ? "bg-accent-soft font-medium text-accent" : "text-muted hover:bg-panel-2 hover:text-fg"}`}>
